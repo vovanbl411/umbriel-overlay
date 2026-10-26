@@ -1,0 +1,13 @@
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<upstream>
+		<doc>https://github.com/noctalia-dev/xdg-desktop-portal-umbriel</doc>
+		<remote-id type="github">noctalia-dev/xdg-desktop-portal-umbriel</remote-id>
+	</upstream>
+	<use>
+		<flag name="picker">Build the GTK share-picker application.</flag>
+	</use>
+	<longdescription>
+		XDG Desktop Portal backend providing screencast and screenshot interfaces for Umbriel.
+	</longdescription>
+</pkgmetadata>
