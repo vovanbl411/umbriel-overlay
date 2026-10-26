@@ -30,8 +30,9 @@ jobs:
       publish_ready: ${{ steps.ready.outputs.publish_ready }}
     env:
       DRY_RUN: ${{ inputs.dry_run || false }}
-      # Эти digest задают общую версию дерева Portage и Stage3 tools; обновлять
-      # их согласованно и повторять Manifest, pkgcheck, vercmp и emerge-проверки.
+      # Эти digest задают совместимую пару Portage tree и Stage3 tools. Менять
+      # их можно только согласованно; затем повторить весь контейнерный prepare
+      # по команде из README, включая Manifest, pkgcheck, vercmp и emerge-проверки.
       GENTOO_PORTAGE_IMAGE: gentoo/portage@sha256:ce69e5b771bfe9404731e846b835346c34f2c82817ac3626f13af198689a1961
       GENTOO_STAGE3_IMAGE: gentoo/stage3@sha256:d8536e52677e3efe4caf048ca588bc685bc2d24d7fdfc882de1cdc6d38c81d96
     steps:
@@ -83,6 +84,8 @@ jobs:
         if: steps.rotation.outputs.prepared == 'true'
         run: |
           set -eu
+          # Portage image предоставляет закреплённое дерево Gentoo как volume,
+          # Stage3 выполняет проверки; оба имени должны соответствовать digest выше.
           docker create --name umbriel-portage "$GENTOO_PORTAGE_IMAGE" /bin/true
           cleanup() { docker rm -f umbriel-portage >/dev/null 2>&1 || true; }
           trap cleanup EXIT
@@ -91,6 +94,8 @@ jobs:
             --env OVERLAY_UID="$(id -u)" --env OVERLAY_GID="$(id -g)" \
             "$GENTOO_STAGE3_IMAGE" /bin/bash -e -c '
               mkdir -p /etc/portage/repos.conf
+              # masters связывает overlay с Gentoo tree из Portage volume;
+              # auto-sync=no сохраняет проверяемые версии репозитория и overlay.
               printf "[umbriel-overlay]\nlocation = /overlay\nmasters = gentoo\nauto-sync = no\n" > /etc/portage/repos.conf/umbriel-overlay.conf
               # Gentoo tree приходит из Portage volume, но Stage3 не объявляет его в repos.conf.
               # Этот location нужен pkgcheck и resolver; auto-sync не даёт менять закреплённое дерево.
