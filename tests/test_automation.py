@@ -17,7 +17,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import umbriel_handoff as handoff
 import gentoo_validate as gentoo_validation
 import watch_umbriel as watcher
-from overlay_policy import Package, Pair, PolicyError, read_state, validate_state_ebuilds
+from overlay_policy import (
+    README_FILES, Package, Pair, PolicyError, read_state,
+    update_readme_text, validate_state_ebuilds,
+)
 from prepare_umbriel import PrepareError, rotate
 
 OLD_UM = "366739955d3905d7600638eb637941b2782c0c68"
@@ -105,7 +108,8 @@ class AutomationTests(unittest.TestCase):
 
     def _write_readme(self) -> None:
         state = read_state(self.root)
-        (self.root / "README.md").write_text("# Test\n\n" + watcher_readme_block(state) + "\n", encoding="utf-8")
+        (self.root / "README.md").write_text("# Test\n\n" + watcher_readme_block(state, "ru") + "\n", encoding="utf-8")
+        (self.root / "README.en.md").write_text("# Test\n\n" + watcher_readme_block(state, "en") + "\n", encoding="utf-8")
 
     def _candidate(self, portal_sha: str = OLD_PORTAL) -> Pair:
         portal_version = FIXTURE_PORTAL_VERSION if portal_sha == OLD_PORTAL else "0.1.0_p20261027110000"
@@ -125,6 +129,14 @@ class AutomationTests(unittest.TestCase):
 
     def test_checked_in_accepted_state_matches_ebuilds(self) -> None:
         validate_state_ebuilds(ROOT)
+
+    def test_checked_in_readme_tables_and_language_links_match_state(self) -> None:
+        state = read_state(ROOT)
+        for filename, language in README_FILES.items():
+            text = (ROOT / filename).read_text(encoding="utf-8")
+            self.assertEqual(update_readme_text(text, state, language, filename), text)
+        self.assertIn("[English](README.en.md)", (ROOT / "README.md").read_text(encoding="utf-8"))
+        self.assertIn("[Русский](README.md)", (ROOT / "README.en.md").read_text(encoding="utf-8"))
 
     def test_thin_manifest_contains_only_src_uri_distfiles(self) -> None:
         state = json.loads((self.root / "automation/accepted-pairs.json").read_text())
@@ -163,7 +175,7 @@ class AutomationTests(unittest.TestCase):
             rotated_root = Path(temp) / "overlay"
             rotated_root.mkdir()
             # Копируем только исходники пакетов и автоматизации, не .git или скрытые конфиги.
-            for name in ("README.md", "automation", "scripts", "tests", "gui-wm", "gui-libs", "metadata", "profiles"):
+            for name in ("README.md", "README.en.md", "automation", "scripts", "tests", "gui-wm", "gui-libs", "metadata", "profiles"):
                 source = ROOT / name
                 target = rotated_root / name
                 if source.is_dir():
@@ -218,6 +230,18 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual(len(list((self.root / "gui-libs/xdg-desktop-portal-umbriel").glob("*.ebuild"))), 1)
         self.assertTrue((self.root / "gui-wm/umbriel/umbriel-0.1.0_pre20261026184522.ebuild").exists())
         self.assertEqual(read_state(self.root).previous.umbriel.sha, OLD_UM)
+
+    def test_rotation_updates_localized_tables_from_the_same_state(self) -> None:
+        rotate(self.root, self._candidate())
+        russian = (self.root / "README.md").read_text(encoding="utf-8")
+        english = (self.root / "README.en.md").read_text(encoding="utf-8")
+        for sha in (NEW_UM, OLD_PORTAL):
+            self.assertIn(sha, russian)
+            self.assertIn(sha, english)
+        self.assertIn("| Статус | Версии Umbriel / portal | SHA Umbriel / portal |", russian)
+        self.assertIn("| Status | Umbriel / portal versions | Umbriel / portal SHAs |", english)
+        self.assertIn("| Принятая текущая пара |", russian)
+        self.assertIn("| Current accepted pair |", english)
 
     def test_both_projects_rotate_together(self) -> None:
         result = rotate(self.root, self._candidate(NEW_PORTAL))
@@ -286,6 +310,10 @@ class AutomationTests(unittest.TestCase):
 
     def test_allowlisted_diff_passes_and_unrelated_change_fails(self) -> None:
         base = BASE
+        base_readmes = {
+            filename: (self.root / filename).read_text(encoding="utf-8")
+            for filename in ("README.md", "README.en.md")
+        }
         prepared = self.root.parent / (self.root.name + "-prepared")
         shutil.copytree(self.root, prepared)
         rotate(prepared, self._candidate())
@@ -296,13 +324,15 @@ class AutomationTests(unittest.TestCase):
         handoff.create(prepared, artifact, base_commit=base, packaging_changes=packaging)
         handoff.apply(artifact, self.root, expected_base=base, actual_base=base)
         outputs = iter((
-            "README.md\nautomation/accepted-pairs.json\ngui-wm/umbriel/Manifest\n"
+            "README.md\nREADME.en.md\nautomation/accepted-pairs.json\ngui-wm/umbriel/Manifest\n"
             "gui-wm/umbriel/umbriel-0.1.0_pre20261027120000.ebuild\n",
             "",
+            base_readmes["README.md"],
+            base_readmes["README.en.md"],
         ))
         with patch("subprocess.run", side_effect=lambda *args, **kwargs: SimpleNamespace(stdout=next(outputs))):
             handoff.verify_diff(artifact, self.root)
-        outputs = iter(("README.md\nautomation/accepted-pairs.json\ngui-wm/umbriel/Manifest\n",
+        outputs = iter(("README.md\nREADME.en.md\nautomation/accepted-pairs.json\ngui-wm/umbriel/Manifest\n",
                         "unrelated.txt\n"))
         with patch("subprocess.run", side_effect=lambda *args, **kwargs: SimpleNamespace(stdout=next(outputs))):
             with self.assertRaises(handoff.HandoffError):
@@ -327,20 +357,34 @@ class AutomationTests(unittest.TestCase):
         artifact = self.root.parent / (self.root.name + "-separate-base-artifact")
         handoff.create(prepared, artifact, base_commit=base_commit,
                        packaging_changes=self._packaging_changes(), removed_pair=result["removed"])
+        artifact_readme = artifact / "overlay/README.en.md"
+        original_artifact_readme = artifact_readme.read_text(encoding="utf-8")
+        artifact_readme.write_text("Extra prose\n" + original_artifact_readme, encoding="utf-8")
 
         applied_copy = self.root.parent / (self.root.name + "-applied-copy")
         shutil.copytree(base_copy, applied_copy)
+        self.assertTrue((artifact / "overlay/README.md").is_file())
+        self.assertTrue(artifact_readme.is_file())
+        with self.assertRaisesRegex(handoff.HandoffError, "README.en.md.*вне выделенного блока"):
+            handoff.apply(artifact, applied_copy, expected_base=base_commit, actual_base=base_commit)
+        artifact_readme.write_text(original_artifact_readme, encoding="utf-8")
         handoff.apply(artifact, applied_copy, expected_base=base_commit, actual_base=base_commit)
         handoff.verify_diff(artifact, applied_copy)
+        applied_readme = applied_copy / "README.en.md"
+        original_applied_readme = applied_readme.read_text(encoding="utf-8")
+        applied_readme.write_text("Extra prose\n" + original_applied_readme, encoding="utf-8")
+        with self.assertRaisesRegex(handoff.HandoffError, "README.en.md.*вне выделенного блока"):
+            handoff.verify_diff(artifact, applied_copy)
+        applied_readme.write_text(original_applied_readme, encoding="utf-8")
         unexpected = applied_copy / "gui-wm/umbriel/umbriel-9.9.9_pre99991231235959.ebuild"
         unexpected.write_text('EAPI=8\n', encoding="utf-8")
         with self.assertRaisesRegex(handoff.HandoffError, "вне allowlist"):
             handoff.verify_diff(artifact, applied_copy)
 
 
-def watcher_readme_block(state) -> str:
+def watcher_readme_block(state, language: str) -> str:
     from overlay_policy import version_block
-    return version_block(state)
+    return version_block(state, language)
 
 
 def tree_snapshot(root: Path) -> dict[str, bytes]:

@@ -129,21 +129,46 @@ def validate_state_ebuilds(root: Path = ROOT) -> None:
                 raise PolicyError(f"SHA в {path.name} не совпадает с {STATE_PATH}.")
 
 
-def version_block(state: State) -> str:
-    """Сформировать компактный блок принятых current/previous пар для README."""
+# У каждого документа свой заголовок таблицы, но общие маркеры. Новый язык
+# нужно добавить здесь и снабдить теми же маркерами в соответствующем README.
+README_FILES = {"README.md": "ru", "README.en.md": "en"}
+
+
+def version_block(state: State, language: str) -> str:
+    """Сформировать таблицу пары для README на заданном языке."""
+    labels = {
+        "ru": (
+            "Статус", "Версии Umbriel / portal", "SHA Umbriel / portal",
+            "Принятая текущая пара", "Предыдущая принятая пара",
+        ),
+        "en": (
+            "Status", "Umbriel / portal versions", "Umbriel / portal SHAs",
+            "Current accepted pair", "Previous accepted pair",
+        ),
+    }
+    try:
+        status, versions, shas, current, previous = labels[language]
+    except KeyError as error:
+        raise PolicyError(f"Неподдерживаемый язык README: {language!r}.") from error
     rows = []
-    for label, pair in (("Принятая текущая пара", state.current), ("Предыдущая принятая пара", state.previous)):
+    for label, pair in ((current, state.current), (previous, state.previous)):
         if pair is None:
             continue
         rows.append(f"| {label} | `{pair.umbriel.version}` / `{pair.portal.version}` | `{pair.umbriel.sha}` / `{pair.portal.sha}` |")
-    return "\n".join(("<!-- accepted-pairs:start -->", "| Статус | Версии Umbriel / portal | SHA Umbriel / portal |", "| --- | --- | --- |", *rows, "<!-- accepted-pairs:end -->"))
+    return "\n".join(("<!-- accepted-pairs:start -->", f"| {status} | {versions} | {shas} |", "| --- | --- | --- |", *rows, "<!-- accepted-pairs:end -->"))
 
 
-def update_readme(root: Path, state: State) -> None:
-    path = root / "README.md"
-    text = path.read_text(encoding="utf-8")
+def update_readme_text(text: str, state: State, language: str, filename: str) -> str:
+    """Заменить только таблицу; остальной текст документа остаётся авторским."""
     block = re.compile(r"<!-- accepted-pairs:start -->.*?<!-- accepted-pairs:end -->", re.S)
-    updated, count = block.subn(version_block(state), text)
+    updated, count = block.subn(lambda _: version_block(state, language), text)
     if count != 1:
-        raise PolicyError("README.md должен содержать ровно один блок принятых пар.")
-    path.write_text(updated, encoding="utf-8")
+        raise PolicyError(f"{filename} должен содержать ровно один блок принятых пар.")
+    return updated
+
+
+def update_readmes(root: Path, state: State) -> None:
+    for filename, language in README_FILES.items():
+        path = root / filename
+        text = path.read_text(encoding="utf-8")
+        path.write_text(update_readme_text(text, state, language, filename), encoding="utf-8")

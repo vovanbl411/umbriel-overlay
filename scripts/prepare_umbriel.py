@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from overlay_policy import (  # noqa: E402
     Pair, Package, PolicyError, ROOT, State, ebuild_path, pair_payload,
-    read_state, state_payload, update_readme, validate_state_ebuilds,
+    read_state, state_payload, update_readmes, validate_state_ebuilds,
 )
 
 
@@ -92,7 +92,7 @@ def rotate(root: Path, candidate: Pair, *, dry_run: bool = False) -> dict[str, o
                 path.unlink()
     state_path = root / "automation/accepted-pairs.json"
     state_path.write_text(json.dumps(state_payload(keep), indent=2) + "\n", encoding="utf-8")
-    update_readme(root, keep)
+    update_readmes(root, keep)
     validate_state_ebuilds(root)
     return {"outcome": "prepared", "current": pair_payload(candidate),
             "previous": pair_payload(old.current),

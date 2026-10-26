@@ -1,24 +1,54 @@
 # Umbriel overlay
 
-Gentoo overlay содержит snapshot-сборки [Umbriel](https://github.com/noctalia-dev/umbriel) и его [XDG Desktop Portal backend](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel). Каждая версия закреплена за полным upstream commit SHA. Отдельный PR CI запускает offline unit tests. Автоматизация snapshot ежедневно проверяет ветку `cachix`, выполняет проверки кандидата и при обновлении открывает Draft PR.
+[English](README.en.md)
 
-## Подключение
+Gentoo overlay с двумя пакетами [Umbriel](https://github.com/noctalia-dev/umbriel): Wayland-композитором и его [backend для XDG Desktop Portal](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel). Синхронизация оверлея получает ebuild и Manifest; она сама не устанавливает и не обновляет пакеты в системе.
 
-Создайте `/etc/portage/repos.conf/umbriel-overlay.conf`:
+## Для пользователя
 
-```ini
-[umbriel-overlay]
-location = /var/db/repos/umbriel-overlay
-sync-type = git
-sync-uri = https://github.com/vovanbl411/umbriel-overlay.git
-auto-sync = yes
-```
+### Подключение и установка
 
-Затем выполните `emerge --sync umbriel-overlay`. Для установки текущей принятой пары укажите точные версии `current` из [automation/accepted-pairs.json](automation/accepted-pairs.json) в атомах Portage.
+1. Создайте `/etc/portage/repos.conf/umbriel-overlay.conf`:
 
-## Принятая пара
+   ```ini
+   [umbriel-overlay]
+   location = /var/db/repos/umbriel-overlay
+   sync-type = git
+   sync-uri = https://github.com/vovanbl411/umbriel-overlay.git
+   auto-sync = yes
+   ```
 
-Пользователь подтвердил успешные сборку, установку и работу этой пары. Другие результаты проверок ей не приписываются.
+2. Синхронизируйте оверлей:
+
+   ```sh
+   emerge --sync umbriel-overlay
+   ```
+
+   Эта команда получает файлы оверлея. Она не устанавливает Umbriel и не запускает обновление системы.
+
+3. Обе версии имеют `KEYWORDS="~amd64"`. Добавьте точные атомы из таблицы принятой пары в `/etc/portage/package.accept_keywords/umbriel-overlay`, заменив обозначения версий значениями из `current`:
+
+   ```text
+   =gui-wm/umbriel-<Umbriel-version> ~amd64
+   =gui-libs/xdg-desktop-portal-umbriel-<portal-version> ~amd64
+   ```
+
+4. Проверьте разрешение выбранной пары, затем установите её отдельной командой:
+
+   ```sh
+   emerge -pv '=gui-wm/umbriel-<Umbriel-version>' '=gui-libs/xdg-desktop-portal-umbriel-<portal-version>'
+   emerge '=gui-wm/umbriel-<Umbriel-version>' '=gui-libs/xdg-desktop-portal-umbriel-<portal-version>'
+   ```
+
+   Подставляйте версии из одной строки таблицы. Не смешивайте версии из разных пар. У Umbriel доступны USE-флаги `jemalloc` и `screencast`; у portal — `picker` (включён по умолчанию). Их настраивают отдельно в `/etc/portage/package.use/`.
+
+### Принятая пара и откат
+
+[Файл `automation/accepted-pairs.json`](automation/accepted-pairs.json) — источник соответствия версий и полных upstream SHA. `current` задаёт пару, принятую в основной ветке. В Draft PR таблица показывает кандидата; он станет принятой парой только после merge.
+
+Версия включает upstream base version и UTC-время соответствующего commit: Umbriel использует суффикс `_pre`, portal — `_p`. Ebuild закрепляет полный commit SHA, поэтому его исходник не меняется при продвижении upstream-ветки.
+
+Пользователь подтвердил сборку, установку и работу текущей принятой пары. Этому подтверждению не приписываются результаты других проверок.
 
 <!-- accepted-pairs:start -->
 | Статус | Версии Umbriel / portal | SHA Umbriel / portal |
@@ -26,59 +56,44 @@ auto-sync = yes
 | Принятая текущая пара | `0.1.0_pre20261026184522` / `0.1.0_p20261024195939` | `366739955d3905d7600638eb637941b2782c0c68` / `e69d6f72122a99aa3668e182a4df8755ada81c17` |
 <!-- accepted-pairs:end -->
 
-Файл состояния — единственный источник связи версий и SHA. `current` задаёт пару, которая будет принята после merge соответствующего PR. `previous` хранит предыдущую принятую пару для отката. Сейчас `previous` равен `null`; первая ротация перенесёт текущую принятую пару в `previous` и удалит исторические ebuild, которые не входят в эти пары. Если SHA портала совпадает в обеих парах, для него остаётся один ebuild.
+`previous` хранит предыдущую принятую пару после ротации и позволяет выбрать её для отката. Сейчас `previous` равен `null`: первая ротация перенесёт текущую пару в `previous`. Исторические ebuild в основной ветке до этой ротации не задают принятую пару. Если SHA portal в двух парах совпадает, для него используется один ebuild.
 
-Исторические ebuild в основной ветке до первой автоматической ротации не считаются принятыми парами. Их SHA не следует использовать для вывода соответствия Umbriel и portal.
+Для отката синхронизируйте оверлей, выберите обе версии из строки `previous`, разрешите соответствующие `~amd64` атомы и установите пару теми же точными атомами Portage.
 
-## Подготовка обновлений
+## Сопровождение оверлея
 
-Workflow [Python unit tests](.github/workflows/ci.yml) запускается на `push` и `pull_request`. Job проверки называется `Python unit tests`.
+### Как готовится обновление
 
-Workflow подготовки snapshot [Prepare Umbriel snapshot pair](.github/workflows/prepare-umbriel-snapshot.yml) запускается по расписанию ежедневно в `06:23 UTC` и вручную через GitHub Actions. Ручной запуск принимает `dry_run`: он показывает обнаруженный кандидат и план ротации, не создавая branch, commit, artifact или PR.
+Workflow [Prepare Umbriel snapshot pair](.github/workflows/prepare-umbriel-snapshot.yml) ежедневно проверяет upstream-ветку `cachix` в `06:23 UTC`; его также можно запустить вручную. Он действует в таком порядке:
 
-Порядок подготовки:
+1. Проверяет, нет ли открытого автоматического PR. Если PR открыт, завершает запуск до обращения к upstream.
+2. Разрешает `cachix` в один полный Umbriel SHA и читает `VERSION`, `flake.lock` и packaging-файлы только по этому SHA.
+3. Берёт portal SHA только из `nodes.xdg-desktop-portal-umbriel.locked.rev` этого `flake.lock`, затем читает файлы portal по закреплённому SHA.
+4. Сравнивает оба SHA с `current`. Если пара не изменилась, подготовка останавливается без изменений.
+5. Для изменившихся проектов готовит ebuild и архивы. Предыдущая `current` становится `previous`; сохраняются только ebuild двух пар. Если portal SHA не изменился, его ebuild переиспользуется.
+6. В закреплённых Gentoo images создаёт Manifest из загруженных архивов, проверяет порядок версий средствами Portage, запускает `pkgcheck scan --exit` и `emerge -pv` для точных версий.
+7. Передаёт в отдельную publish job ограниченный artifact. Та проверяет его состав, разрешённый diff и совпадение base commit, затем открывает Draft PR через `GITHUB_TOKEN`.
 
-1. Проверить, нет ли открытого автоматического PR. При его наличии запуск завершится без обращения к `cachix` и без изменения кандидата.
-2. Один раз разрешить `cachix` в полный Umbriel commit SHA. `VERSION`, `flake.lock` и packaging-файлы читать только по этому SHA.
-3. Получить portal SHA только из `nodes.xdg-desktop-portal-umbriel.locked.rev` этого `flake.lock`. Файлы портала и дату его commit читать по указанному SHA.
-4. Сравнить оба SHA с `current` из файла состояния. Если SHA не изменились, новую пару не готовить.
-5. Для каждого изменившегося проекта создать отдельный ebuild и distfile. Версия включает upstream base version и UTC timestamp commit: Umbriel использует `_pre`, portal — `_p`. Если SHA портала не изменился, существующий ebuild повторно используется.
-6. Перенести прежнюю `current` в `previous`, обновить README, удалить ebuild вне двух хранимых пар и выполнить проверки в закреплённом Gentoo container. `pkgcheck` устанавливается только во временный container; система пользователя не меняется.
-7. Передать только ограниченный artifact в отдельный job публикации. Он проверит состав artifact, allowlist diff и совпадение base commit, затем создаст ветку и Draft PR через встроенный `GITHUB_TOKEN`.
+В PR перечисляются старые и новые версии/SHA обоих проектов, upstream compare-ссылки, изменения packaging-файлов и результаты контейнерных проверок, artifact и base commit.
 
-Кандидат в PR не становится принятой парой до merge. Пока автоматический PR открыт, продвижение `cachix` не меняет его содержимое и не создаёт второй PR. Автоматизация не включает auto-merge и не устанавливает пакеты.
+Prepare job не получает права записи в репозиторий, Gentoo container не получает GitHub credentials. Автоматизация не устанавливает Umbriel, не собирает пакет, не тестирует сессию, не выполняет merge и не включает auto-merge. `pkgcheck` проверяет ebuild, а `emerge -pv` — разрешение зависимостей; эти команды не подтверждают сборку или работу сессии.
 
-В описании PR указываются старые и новые версии/SHA обоих проектов, upstream compare-ссылки, изменения packaging-файлов, результаты Manifest, `pkgcheck`, Portage-порядка версий, `emerge -pv`, проверок artifact и base commit. Эти проверки не заменяют сборку и ручную проверку сессии.
+Ручной запуск принимает `dry_run`. В этом режиме workflow выполняет discovery и показывает план, но не запускает контейнерную проверку и не создаёт artifact, branch или PR. Успешный `dry_run` не подтверждает локальный container prepare. Публикацию первого update PR можно считать проверенной только после фактического запуска publish job и появления Draft PR.
 
-## Проверка пары перед merge
+### Настройки GitHub
 
-Для кандидата, подготовленного автоматизацией, необходимо вручную проверить установленную пару в сессии Umbriel. `pkgcheck scan --exit` проверяет ebuild, а `emerge -pv` — разрешение зависимостей; ни одна из этих команд не подтверждает сборку или работоспособность сессии. Перед merge проверьте запуск сессии, базовый ввод и вывод изображения, Noctalia при необходимости, демонстрацию экрана и picker портала.
+Это инструкции по настройке репозитория; они не подтверждают, что параметры уже включены.
 
-## Настройки GitHub
+- Включите GitHub Actions. Если разрешены только выбранные Actions, добавьте `actions/checkout`, `actions/upload-artifact` и `actions/download-artifact` с SHA из `uses:` в workflow. GitHub сравнивает закреплённый SHA с allowlist; см. [настройки разрешённых Actions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository).
+- В **Settings → Actions → General → Workflow permissions** оставьте минимальные разрешения `GITHUB_TOKEN` по умолчанию и включите **Allow GitHub Actions to create and approve pull requests**, иначе publish job не сможет создать Draft PR. В workflow prepare имеет `contents: read` и `pull-requests: read`, publish — `contents: write` и `pull-requests: write`.
+- Для основной ветки задайте required check **Python unit tests** из workflow [Python unit tests](.github/workflows/ci.yml), источник — GitHub Actions. Требуйте, чтобы ветка PR была актуальна перед merge.
+- Перед merge вручную установите и проверьте пару в сессии Umbriel: запуск, ввод, вывод изображения, Noctalia при необходимости, демонстрацию экрана и picker портала.
 
-### Actions и токен
+PR, созданный с помощью `GITHUB_TOKEN`, может поставить запуск `pull_request` workflow в состояние ожидания. После проверки изменений пользователь с правом записи должен вручную выбрать **Approve workflows to run**. Это описано в [документации GitHub о запуске workflow из workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow). PAT, GitHub App и `pull_request_target` для обхода подтверждения не используются.
 
-Включите GitHub Actions для репозитория. Если политика репозитория ограничивает Actions, разрешите закреплённые в workflow `actions/checkout` и `actions/upload-artifact`.
+### Повтор контейнерной проверки
 
-В **Settings → Actions → General → Workflow permissions** оставьте минимальные разрешения по умолчанию для `GITHUB_TOKEN`. Включите **Allow GitHub Actions to create and approve pull requests**: без этой настройки workflow не сможет открыть Draft PR. Workflow задаёт права отдельно для каждой job: prepare получает `contents: read` и `pull-requests: read`, publish — `contents: write` и `pull-requests: write`.
-
-При создании или обновлении PR через `GITHUB_TOKEN` событие `pull_request` может поставить CI в состояние ожидания подтверждения. После проверки изменений в PR пользователь с правом записи должен нажать **Approve workflows to run**. Это поведение описано в [документации GitHub о запуске workflow из workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow). Для обхода этого шага не используются PAT, GitHub App или `pull_request_target`.
-
-### Проверки перед merge
-
-Для основной ветки настройте protection rule или ruleset:
-
-- требуемая проверка — job **Python unit tests** из workflow [Python unit tests](.github/workflows/ci.yml), источник проверки — GitHub Actions;
-- включите требование актуальности ветки PR перед merge (**Require branches to be up to date before merging**);
-- перед принятием пары вручную проверьте её установку и работу в сессии Umbriel. `pkgcheck` и `emerge -pv` проверяют ebuild и разрешение зависимостей, но не сборку и не работу сессии.
-
-### Параметры запуска и повтор контейнерной проверки
-
-Ручной запуск workflow **Prepare Umbriel snapshot pair** принимает параметр `dry_run`. При `true` workflow выполняет discovery, вызывает prepare в режиме dry run и показывает план, но не запускает контейнерную проверку и не создаёт artifact, branch или PR. При обычном запуске container validation работает с подготовленной парой.
-
-Версии окружения задаются в `GENTOO_PORTAGE_IMAGE` и `GENTOO_STAGE3_IMAGE` в `.github/workflows/prepare-umbriel-snapshot.yml`. Используются образы по digest; меняйте digest только после проверки новой связки Portage tree и Stage3 и повторного выполнения всех команд ниже. В `scripts/gentoo_validate.py` заданы временные keyword и USE overrides для resolver. Меняйте их только по новому выводу `emerge -pv` закреплённого окружения; не запускайте `--autounmask`.
-
-Чтобы повторить контейнерную проверку локально, сначала подготовьте чистую копию overlay с парой-кандидатом и fallback-парой в `automation/accepted-pairs.json`, включая их ebuild. Затем из корня репозитория выполните:
+Подготовьте отдельную чистую копию overlay, в которой `accepted-pairs.json`, ebuild и Manifest уже содержат пару-кандидата и fallback-пару. Из корня репозитория выполните:
 
 ```sh
 set -eu
@@ -103,10 +118,10 @@ docker run --rm --volumes-from "$CONTAINER_NAME" \
   '
 ```
 
-Команда использует те же digest и validation script, что и workflow. Она генерирует Manifest из загруженных архивов, проверяет thin Manifest и `SRC_URI`, порядок версий средствами Portage, запускает `pkgcheck scan --exit` и `emerge -pv` для точных версий из `current`. При обновлении resolver overrides повторите эту же команду и проверьте весь вывод.
+Digest образов задаются в `.github/workflows/prepare-umbriel-snapshot.yml`. Меняйте их только согласованно и повторяйте полный набор проверок. В `scripts/gentoo_validate.py` находятся временные keyword и USE overrides для resolver; меняйте их только по новому выводу `emerge -pv`, затем повторите контейнерную проверку. Не запускайте `--autounmask`.
 
-Результаты следует различать:
+### Ручная проверка и границы результатов
 
-- **Локально проверенный prepare** — завершились подготовка, container validation, artifact, его применение к отдельной Git-копии base commit и `verify-diff`.
-- **Успешный GitHub `dry_run`** — workflow успешно выполнил offline tests и discovery и показал план; это не выполняет контейнерную подготовку.
-- **Реальная публикация первого update PR** — подтверждается только фактическим запуском publish job и появлением Draft PR. Пока такой запуск не выполнен, публикация не считается проверенной.
+Перед merge проверьте установленную пару в сессии Umbriel. CI проверяет Python-логику обновления, а контейнер — метаданные ebuild и зависимости. Они не выполняют сборку Umbriel или portal и не подтверждают работу сессии.
+
+Отдельно фиксируйте три результата: локально выполненный prepare с контейнером и проверкой artifact; успешный GitHub `dry_run`, который проверяет discovery и показывает план; фактическую публикацию первого update PR. Один результат не заменяет другой. Noctalia обновляется отдельно и в автоматизацию Umbriel не входит.
