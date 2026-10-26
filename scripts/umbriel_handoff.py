@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from overlay_policy import (  # noqa: E402
-    PolicyError, ebuild_path, pair_payload, read_state, validate_state_ebuilds,
-    version_block,
+    README_FILES, PolicyError, State, ebuild_path, pair_payload, read_state,
+    update_readme_text, validate_state_ebuilds,
 )
 
 SCHEMA = 1
@@ -43,7 +43,7 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 def _allowed_overlay_files(state_root: Path) -> set[str]:
     state = read_state(state_root)
-    paths = {"README.md", "automation/accepted-pairs.json", *MANIFESTS}
+    paths = {*README_FILES, "automation/accepted-pairs.json", *MANIFESTS}
     for pair in (state.current, state.previous):
         if pair:
             paths.update((ebuild_path("umbriel", pair.umbriel.version), ebuild_path("portal", pair.portal.version)))
@@ -156,6 +156,21 @@ def expected_diff(repository_root: Path, overlay_root: Path) -> set[str]:
     return expected
 
 
+def _check_readme_blocks(base_readmes: dict[str, str], overlay_root: Path,
+                         state: State) -> None:
+    """Разрешить в обоих README только таблицу, полученную из state."""
+    # Сравнение полного текста с base защищает allowlist от превращения в
+    # разрешение произвольно редактировать пользовательскую документацию.
+    for filename, language in README_FILES.items():
+        try:
+            expected = update_readme_text(base_readmes[filename], state, language, filename)
+            actual = (overlay_root / filename).read_text(encoding="utf-8")
+        except (KeyError, OSError, PolicyError) as error:
+            raise HandoffError(f"Не удалось проверить блок таблицы в {filename}.") from error
+        if actual != expected:
+            raise HandoffError(f"{filename} содержит изменения вне выделенного блока таблицы.")
+
+
 def apply(artifact: Path, repository_root: Path, *, expected_base: str,
           actual_base: str) -> set[str]:
     overlay, metadata = validate(artifact)
@@ -186,12 +201,11 @@ def apply(artifact: Path, repository_root: Path, *, expected_base: str,
                                      f'MY_COMMIT="{new.sha}"', source_text)
         if count != 1 or replacement != target_path.read_text(encoding="utf-8"):
             raise HandoffError(f"Кандидатный ebuild {target_path.name} отличается от разрешённой SHA-замены.")
-    original_readme = (repository_root / "README.md").read_text(encoding="utf-8")
-    # README разрешено менять только в выделенном блоке принятых пар.
-    marker = re.compile(r"<!-- accepted-pairs:start -->.*?<!-- accepted-pairs:end -->", re.S)
-    expected_readme, count = marker.subn(version_block(target_state), original_readme)
-    if count != 1 or expected_readme != (overlay / "README.md").read_text(encoding="utf-8"):
-        raise HandoffError("README artifact содержит изменения вне таблицы принятых пар.")
+    original_readmes = {
+        filename: (repository_root / filename).read_text(encoding="utf-8")
+        for filename in README_FILES
+    }
+    _check_readme_blocks(original_readmes, overlay, target_state)
     allow = expected_diff(repository_root, overlay)
     for directory in (repository_root / "gui-wm/umbriel", repository_root / "gui-libs/xdg-desktop-portal-umbriel"):
         for path in directory.glob("*.ebuild"):
@@ -209,6 +223,7 @@ def apply(artifact: Path, repository_root: Path, *, expected_base: str,
 
 def verify_diff(artifact: Path, repository_root: Path) -> None:
     overlay, _ = validate(artifact)
+    target_state = read_state(overlay)
     allowed = expected_diff(repository_root, overlay)
     import subprocess
     tracked = subprocess.run(["git", "diff", "--name-only"], cwd=repository_root,
@@ -219,8 +234,18 @@ def verify_diff(artifact: Path, repository_root: Path) -> None:
     unexpected = actual - allowed
     if unexpected:
         raise HandoffError("Diff содержит файлы вне allowlist: " + ", ".join(sorted(unexpected)))
-    target_state = read_state(overlay)
-    required = {"README.md", "automation/accepted-pairs.json"}
+    base_readmes = {}
+    for filename in README_FILES:
+        try:
+            base_readmes[filename] = subprocess.run(
+                ["git", "show", f"HEAD:{filename}"], cwd=repository_root,
+                check=True, capture_output=True, text=True,
+            ).stdout
+        except subprocess.CalledProcessError as error:
+            raise HandoffError(f"Не удалось прочитать {filename} из base commit.") from error
+    _check_readme_blocks(base_readmes, overlay, target_state)
+    _check_readme_blocks(base_readmes, repository_root, target_state)
+    required = {*README_FILES, "automation/accepted-pairs.json"}
     if target_state.previous is not None:
         if target_state.current.umbriel.sha != target_state.previous.umbriel.sha:
             required.update((MANIFESTS[0], ebuild_path("umbriel", target_state.current.umbriel.version)))
