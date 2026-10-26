@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,15 +15,27 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import umbriel_handoff as handoff
+import gentoo_validate as gentoo_validation
 import watch_umbriel as watcher
 from overlay_policy import Package, Pair, PolicyError, read_state, validate_state_ebuilds
 from prepare_umbriel import PrepareError, rotate
 
 OLD_UM = "366739955d3905d7600638eb637941b2782c0c68"
 OLD_PORTAL = "e69d6f72122a99aa3668e182a4df8755ada81c17"
+FIXTURE_UM_VERSION = "0.1.0_pre20261026184522"
+FIXTURE_PORTAL_VERSION = "0.1.0_p20261024195939"
 NEW_UM = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 NEW_PORTAL = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 BASE = "cccccccccccccccccccccccccccccccccccccccc"
+
+FIXTURE_STATE = {
+    "schema_version": 1,
+    "current": {
+        "umbriel": {"version": FIXTURE_UM_VERSION, "sha": OLD_UM},
+        "portal": {"version": FIXTURE_PORTAL_VERSION, "sha": OLD_PORTAL},
+    },
+    "previous": None,
+}
 
 
 class FakeClient:
@@ -64,18 +78,27 @@ class AutomationTests(unittest.TestCase):
         self.temp.cleanup()
 
     def _fixture(self) -> None:
-        state = json.loads((ROOT / "automation/accepted-pairs.json").read_text())
         (self.root / "automation").mkdir()
-        (self.root / "automation/accepted-pairs.json").write_text(json.dumps(state, indent=2) + "\n")
+        (self.root / "automation/accepted-pairs.json").write_text(json.dumps(FIXTURE_STATE, indent=2) + "\n")
         dirs = ("gui-wm/umbriel", "gui-libs/xdg-desktop-portal-umbriel")
         for directory in dirs:
             (self.root / directory).mkdir(parents=True)
-            (self.root / directory / "Manifest").write_text("DIST old.tar.gz 1 BLAKE2B a SHA512 b\n")
-        for relative in (
-            "gui-wm/umbriel/umbriel-0.1.0_pre20261026184522.ebuild",
-            "gui-libs/xdg-desktop-portal-umbriel/xdg-desktop-portal-umbriel-0.1.0_p20261024195939.ebuild",
-        ):
-            shutil.copyfile(ROOT / relative, self.root / relative)
+        (self.root / "gui-wm/umbriel/Manifest").write_text(
+            f"DIST umbriel-{OLD_UM}.tar.gz 1 BLAKE2B a SHA512 b\n"
+        )
+        (self.root / "gui-libs/xdg-desktop-portal-umbriel/Manifest").write_text(
+            f"DIST xdg-desktop-portal-umbriel-{FIXTURE_PORTAL_VERSION}.tar.gz 1 BLAKE2B a SHA512 b\n"
+        )
+        (self.root / f"gui-wm/umbriel/umbriel-{FIXTURE_UM_VERSION}.ebuild").write_text(
+            f'EAPI=8\nMY_COMMIT="{OLD_UM}"\n'
+            'SRC_URI="https://example.invalid/umbriel/archive/${MY_COMMIT}.tar.gz -> ${PN}-${MY_COMMIT}.tar.gz"\n',
+            encoding="utf-8",
+        )
+        (self.root / f"gui-libs/xdg-desktop-portal-umbriel/xdg-desktop-portal-umbriel-{FIXTURE_PORTAL_VERSION}.ebuild").write_text(
+            f'EAPI=8\nMY_COMMIT="{OLD_PORTAL}"\n'
+            'SRC_URI="https://example.invalid/portal/archive/${MY_COMMIT}.tar.gz -> ${P}.tar.gz"\n',
+            encoding="utf-8",
+        )
         (self.root / "gui-wm/umbriel/umbriel-0.0.0_pre20261008.ebuild").write_text(f'MY_COMMIT="{"1" * 40}"\n')
         (self.root / "gui-libs/xdg-desktop-portal-umbriel/xdg-desktop-portal-umbriel-0.1.0_p20260926.ebuild").write_text(f'MY_COMMIT="{"2" * 40}"\n')
         self._write_readme()
@@ -85,7 +108,7 @@ class AutomationTests(unittest.TestCase):
         (self.root / "README.md").write_text("# Test\n\n" + watcher_readme_block(state) + "\n", encoding="utf-8")
 
     def _candidate(self, portal_sha: str = OLD_PORTAL) -> Pair:
-        portal_version = "0.1.0_p20261024195939" if portal_sha == OLD_PORTAL else "0.1.0_p20261027110000"
+        portal_version = FIXTURE_PORTAL_VERSION if portal_sha == OLD_PORTAL else "0.1.0_p20261027110000"
         return Pair(Package("0.1.0_pre20261027120000", NEW_UM), Package(portal_version, portal_sha))
 
     @staticmethod
@@ -102,6 +125,73 @@ class AutomationTests(unittest.TestCase):
 
     def test_checked_in_accepted_state_matches_ebuilds(self) -> None:
         validate_state_ebuilds(ROOT)
+
+    def test_thin_manifest_contains_only_src_uri_distfiles(self) -> None:
+        state = json.loads((self.root / "automation/accepted-pairs.json").read_text())
+        gentoo_validation.verify_thin_manifests(self.root, state)
+        manifest = self.root / "gui-wm/umbriel/Manifest"
+        manifest.write_text("AUX unrelated.patch 1 BLAKE2B a SHA512 b\n")
+        with self.assertRaisesRegex(SystemExit, "non-DIST"):
+            gentoo_validation.verify_thin_manifests(self.root, state)
+
+    def test_keyword_override_is_exact_and_only_when_stage3_needs_it(self) -> None:
+        state = json.loads((self.root / "automation/accepted-pairs.json").read_text())
+        override = gentoo_validation.candidate_keyword_overrides(state, "amd64", {"amd64"})
+        self.assertEqual(
+            override.splitlines(),
+            [
+                f"=gui-wm/umbriel-{FIXTURE_UM_VERSION} ~amd64",
+                f"=gui-libs/xdg-desktop-portal-umbriel-{FIXTURE_PORTAL_VERSION} ~amd64",
+                "=dev-cpp/sdbus-c++-2.3.1 ~amd64",
+            ],
+        )
+        self.assertEqual(gentoo_validation.candidate_keyword_overrides(state, "amd64", {"amd64", "~amd64"}), "")
+        with self.assertRaisesRegex(SystemExit, "invalid ARCH"):
+            gentoo_validation.candidate_keyword_overrides(state, "amd64!", {"amd64"})
+        self.assertEqual(
+            gentoo_validation.RESOLVER_USE_OVERRIDES,
+            (
+                ">=x11-libs/cairo-1.18.4-r1 X",
+                ">=media-libs/libglvnd-1.7.0 X",
+                ">=media-libs/freetype-2.14.3 harfbuzz",
+                ">=gui-libs/wlroots-0.20.2 X",
+            ),
+        )
+
+    def test_rotation_does_not_break_suite_after_two_rotations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            rotated_root = Path(temp) / "overlay"
+            rotated_root.mkdir()
+            # Копируем только исходники пакетов и автоматизации, не .git или скрытые конфиги.
+            for name in ("README.md", "automation", "scripts", "tests", "gui-wm", "gui-libs", "metadata", "profiles"):
+                source = ROOT / name
+                target = rotated_root / name
+                if source.is_dir():
+                    shutil.copytree(source, target)
+                else:
+                    shutil.copyfile(source, target)
+            initial = read_state(rotated_root).current
+            base = initial.umbriel.version.split("_pre", maxsplit=1)[0]
+            first = Pair(Package(f"{base}_pre99991231235958", "1" * 40), initial.portal)
+            second = Pair(Package(f"{base}_pre99991231235959", "2" * 40), initial.portal)
+            rotate(rotated_root, first)
+            self._run_offline_suite(rotated_root)
+            rotate(rotated_root, second)
+            self._run_offline_suite(rotated_root)
+
+    def _run_offline_suite(self, root: Path) -> None:
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        completed = subprocess.run(
+            [sys.executable, str(root / "tests/run_after_rotation.py")],
+            cwd=root,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
 
     def test_no_update_does_not_prepare(self) -> None:
         result = watcher.discover(FakeClient(umb_sha=OLD_UM), base_commit=BASE, repository_root=self.root)
@@ -217,6 +307,35 @@ class AutomationTests(unittest.TestCase):
         with patch("subprocess.run", side_effect=lambda *args, **kwargs: SimpleNamespace(stdout=next(outputs))):
             with self.assertRaises(handoff.HandoffError):
                 handoff.verify_diff(artifact, self.root)
+
+    def test_handoff_applies_and_verifies_on_separate_base_copy(self) -> None:
+        base_copy = self.root.parent / (self.root.name + "-base-copy")
+        shutil.copytree(self.root, base_copy)
+        subprocess.run(["git", "init", "-q"], cwd=base_copy, check=True)
+        subprocess.run(["git", "add", "."], cwd=base_copy, check=True)
+        subprocess.run(["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                        "-c", "commit.gpgsign=false",
+                        "commit", "-qm", "fixture base"], cwd=base_copy, check=True)
+        base_commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=base_copy,
+                                     check=True, capture_output=True, text=True).stdout.strip()
+
+        prepared = self.root.parent / (self.root.name + "-prepared-copy")
+        shutil.copytree(base_copy, prepared)
+        result = rotate(prepared, self._candidate())
+        for directory in ("gui-wm/umbriel", "gui-libs/xdg-desktop-portal-umbriel"):
+            (prepared / directory / "Manifest").write_text("DIST generated.tar.gz 4 BLAKE2B c SHA512 d\n")
+        artifact = self.root.parent / (self.root.name + "-separate-base-artifact")
+        handoff.create(prepared, artifact, base_commit=base_commit,
+                       packaging_changes=self._packaging_changes(), removed_pair=result["removed"])
+
+        applied_copy = self.root.parent / (self.root.name + "-applied-copy")
+        shutil.copytree(base_copy, applied_copy)
+        handoff.apply(artifact, applied_copy, expected_base=base_commit, actual_base=base_commit)
+        handoff.verify_diff(artifact, applied_copy)
+        unexpected = applied_copy / "gui-wm/umbriel/umbriel-9.9.9_pre99991231235959.ebuild"
+        unexpected.write_text('EAPI=8\n', encoding="utf-8")
+        with self.assertRaisesRegex(handoff.HandoffError, "вне allowlist"):
+            handoff.verify_diff(artifact, applied_copy)
 
 
 def watcher_readme_block(state) -> str:

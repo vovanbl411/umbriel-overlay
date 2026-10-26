@@ -1,6 +1,6 @@
 # Umbriel overlay
 
-Gentoo overlay содержит snapshot-сборки [Umbriel](https://github.com/noctalia-dev/umbriel) и его [XDG Desktop Portal backend](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel). Каждая версия закреплена за полным upstream commit SHA. Workflow ежедневно проверяет ветку `cachix`, выполняет проверки кандидата и при обновлении открывает Draft PR.
+Gentoo overlay содержит snapshot-сборки [Umbriel](https://github.com/noctalia-dev/umbriel) и его [XDG Desktop Portal backend](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel). Каждая версия закреплена за полным upstream commit SHA. Отдельный PR CI запускает offline unit tests. Автоматизация snapshot ежедневно проверяет ветку `cachix`, выполняет проверки кандидата и при обновлении открывает Draft PR.
 
 ## Подключение
 
@@ -32,7 +32,9 @@ auto-sync = yes
 
 ## Подготовка обновлений
 
-Workflow [Prepare Umbriel snapshot pair](.github/workflows/prepare-umbriel-snapshot.yml) запускается ежедневно в `06:23 UTC`. Его также можно запустить вручную через GitHub Actions. Ручной запуск принимает `dry_run`: он показывает обнаруженный кандидат и план ротации, не создавая branch, commit, artifact или PR.
+Workflow [Python unit tests](.github/workflows/ci.yml) запускается на `push` и `pull_request`. Job проверки называется `Python unit tests`.
+
+Workflow подготовки snapshot [Prepare Umbriel snapshot pair](.github/workflows/prepare-umbriel-snapshot.yml) запускается по расписанию ежедневно в `06:23 UTC` и вручную через GitHub Actions. Ручной запуск принимает `dry_run`: он показывает обнаруженный кандидат и план ротации, не создавая branch, commit, artifact или PR.
 
 Порядок подготовки:
 
@@ -53,7 +55,3 @@ Workflow [Prepare Umbriel snapshot pair](.github/workflows/prepare-umbriel-snaps
 Для кандидата, подготовленного автоматизацией, необходимо вручную проверить установленную пару в сессии Umbriel. `pkgcheck scan --exit` проверяет ebuild, а `emerge -pv` — разрешение зависимостей; ни одна из этих команд не подтверждает сборку или работоспособность сессии. Перед merge проверьте запуск сессии, базовый ввод и вывод изображения, Noctalia при необходимости, демонстрацию экрана и picker портала.
 
 ## Настройки GitHub
-
-Перед первым запуском без `dry_run` откройте `Settings → Actions → General` и разрешите `Allow GitHub Actions to create and approve pull requests`. Если запись ветки разрешена, но эта настройка выключена, GitHub отклонит создание PR после отправки ветки-кандидата. После включения можно повторить запуск: workflow использует существующую ветку только при совпадении её tree и base commit. Убедитесь также, что политика репозитория или организации разрешает workflow права `contents: write` и `pull-requests: write`. Discovery использует только `contents: read` и `pull-requests: read`; PAT не требуется. Описание настройки находится в [документации GitHub Actions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests).
-
-После review автоматизацию можно включить, запустив workflow вручную без `dry_run` или дождавшись ежедневного запуска. До этого ручного включения публикация Draft PR не проверена в настройках самого репозитория.
