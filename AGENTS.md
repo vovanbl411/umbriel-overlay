@@ -1,40 +1,66 @@
 # Инструкции для этого репозитория
 
-## Назначение
+## Назначение и границы
 
-Это Gentoo overlay для закреплённых snapshot-версий Umbriel и `xdg-desktop-portal-umbriel`. Актуальное описание, подключение overlay, source SHA, правила обновления и ручная проверка сессии находятся в [README.md](README.md).
+Это Gentoo overlay для snapshot-версий Umbriel и `xdg-desktop-portal-umbriel`. Описание принятой пары и работы автоматизации находится в [README.md](README.md), соответствие версий и SHA хранится в [automation/accepted-pairs.json](automation/accepted-pairs.json).
 
-## Границы изменений
+Разрешённая область изменений для этой автоматизации:
 
-- Менять только `gui-wm/umbriel/`, `gui-libs/xdg-desktop-portal-umbriel/`, `README.md` и `AGENTS.md`, если задача явно не расширяет эти границы.
-- Не добавлять GitHub Actions, scripts, ebuild `9999` и изменения других overlay.
-- Не устанавливать пакеты, не менять пользовательскую конфигурацию или установленную систему.
-- Не выполнять push или merge.
-- Сохранять существующие ebuild, пока отдельно не принято решение об их удалении или переименовании.
+- `gui-wm/umbriel/` и `gui-libs/xdg-desktop-portal-umbriel/`, включая ebuild и Manifest;
+- `automation/accepted-pairs.json`;
+- `scripts/`, `tests/`, `.github/`;
+- `README.md` и `AGENTS.md`.
 
-## Выбор исходников
+Не менять другие оверлеи, пользовательскую конфигурацию, установленную систему или upstream. Не устанавливать пакеты локально. Не выполнять push, merge или реальную публикацию тестового Draft PR. Сохранять ebuild до тех пор, пока ротация не удаляет его как версию вне двух пар в состоянии.
 
-- Umbriel-кандидат разрешается из ветки upstream `cachix` в полный SHA. Читать `VERSION`, `flake.lock` и остальные исходники по закреплённому коммиту.
-- SHA `xdg-desktop-portal-umbriel` брать исключительно из `flake.lock` этого коммита Umbriel и исследовать портал по этому SHA.
-- Каждая новая версия получает отдельный ebuild и distfile. Использовать upstream base version и UTC timestamp коммита `YYYYMMDDHHMMSS`; по умолчанию добавлять суффикс `_pre`. Если такой вариант ниже имеющейся версии по Portage, выбрать суффикс `_p`, сохранив base version и порядок обновления. Не заменять содержимое существующей версии или distfile.
-- Сверять ebuild-зависимости с Meson dependencies и `umbrielfx`. Явно задавать Meson options для USE-управляемых и необязательных путей, чтобы результат сборки не зависел от случайно установленных библиотек. Не добавлять USE-флаги без необходимости.
-- Сохранять EAPI 8, SLOT 0, KEYWORDS `~amd64` и существующее назначение USE `jemalloc`, `screencast` и `picker`.
-- Обновлять Manifest из фактически загруженных архивов.
+## Источники и snapshot-версии
 
-## Статус принятия и автоматизация
+- Umbriel-кандидат разрешается только из ветки upstream `cachix` в полный SHA. Один раз получить SHA, затем читать `VERSION`, `flake.lock` и остальные файлы Umbriel по нему.
+- SHA `xdg-desktop-portal-umbriel` брать только из `nodes.xdg-desktop-portal-umbriel.locked.rev` файла `flake.lock` закреплённого Umbriel commit. Исследовать портал только по этому SHA.
+- Проверять форму обоих полных SHA, наличие lock node и версию portal из его исходников. Некорректные данные должны прекращать discovery с причиной.
+- Новая версия содержит upstream base version и UTC timestamp commit в формате `YYYYMMDDHHMMSS`. Для Umbriel сохранять `_pre`, для portal — `_p`. Проверять, что версия увеличилась, средствами Portage. Не менять содержимое ebuild под существующей версией или distfile.
+- Не создавать новый portal ebuild, если SHA portal совпадает с хранимой парой. Общий SHA portal в current и previous использует один ebuild.
+- Сверять зависимости ebuild с Meson dependencies и `umbrielfx`. Явно задавать Meson options для USE-управляемых и необязательных путей, чтобы сборка не зависела от случайно установленных библиотек. Не добавлять USE-флаги без необходимости.
+- Сохранять EAPI 8, SLOT 0, KEYWORDS `~amd64` и назначение USE `jemalloc`, `screencast` и `picker`.
+- Manifest генерировать в Gentoo container из фактически загруженных distfile архивов.
 
-- Документировать отдельно подготовленного кандидата и проверенную пользователем пару. Не объявлять пару проверенной до ручной проверки сессии.
-- Исторические ebuild, закрепляющие иную комбинацию SHA, не считать согласованными с upstream lock.
-- Noctalia обновляется отдельно по релизам.
-- Будущая автоматизация может подготовить Draft PR без auto-merge. Одновременно допускается один открытый автоматический PR; пока кандидат проверяется, автоматизация не должна его переписывать.
-- Хранить текущую и предыдущую принятую пару. Общий SHA портала в этих парах должен использовать один ebuild.
-- На первом этапе готовить пакеты и документацию; автоматизацию добавлять только отдельной задачей после review.
+## Состояние принятых пар
+
+- `automation/accepted-pairs.json` — единственный источник соответствия версий и SHA. Не выводить пары независимо из самых новых ebuild.
+- `current` обозначает принятую пару в основной ветке. `previous` содержит предыдущую принятую пару либо `null` до первой ротации.
+- В Draft PR обновлять state, ebuilds, Manifest и README атомарно. До merge состояние основной ветки остаётся прежним.
+- При ротации переносить нынешнюю `current` в `previous`, удалять ebuild вне этих пар и добавлять кандидата. Если SHA portal общий, оставлять один ebuild.
+- Принятой считать только пару, попавшую в `main` после merge. Не приписывать паре проверки, которых не выполняли.
+- Noctalia обновляется отдельно и в автоматизацию Umbriel не входит.
+
+## Автоматизация и безопасность публикации
+
+- Сохранять отдельные read-only prepare и publish jobs. Prepare не получает repository write credentials. Gentoo container не получает GitHub credentials.
+- Упаковывать только ограниченный artifact после подготовки и проверок. В publish повторно проверять состав файлов, allowlist diff и исходный base commit. При несовпадении base commit останавливать публикацию.
+- Использовать только встроенный `GITHUB_TOKEN` с минимальными правами job. Не добавлять PAT, auto-merge, установку пакетов или действия, которые пишут в upstream.
+- Закреплять GitHub Actions по полному commit SHA, container images — по digest.
+- Проверять открытый automation PR до discovery upstream. Если он открыт, завершать запуск без нового кандидата и не переписывать существующий PR при продвижении `cachix`.
+- При отсутствии обновления завершать запуск без подготовки. `dry_run` не создаёт branch, commit, artifact или PR.
+- Не добавлять отдельное сопоставление двух main-веток и ожидание upstream bot commits.
+- Discovery отражает изменения `PACKAGING.md`, `meson.build`, `meson_options.txt`, `VERSION` и `flake.lock` обоих проектов. PR описывает старые/новые версии и SHA и содержит compare-ссылки.
+- Комментарии в scripts/workflow писать по-русски, когда они объясняют нетривиальную логику, влияние изменяемых параметров, связанные настройки или security/correctness constraints. Очевидные операции не комментировать.
 
 ## Проверка
 
-- Выполнить `git diff --check`.
-- Проверить порядок версий средствами Portage.
-- Сгенерировать Manifest для новых ebuild из фактических архивов.
-- Запустить `pkgcheck scan --exit` для обоих пакетов и `emerge -pv` с точными версиями-кандидатами.
-- Сверить portal SHA в ebuild с `nodes.xdg-desktop-portal-umbriel.locked.rev` из выбранного `flake.lock`.
-- Не считать `pkgcheck` или `emerge -pv` доказательством сборки либо работоспособности сессии. Перед merge требуется ручная проверка установленной пары в сессии Umbriel.
+Локально выполнить:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+git diff --check
+```
+
+Focused tests должны покрывать чтение пары, отсутствие обновления, открытый PR, обновление только Umbriel, обновление обоих проектов, ротацию, повторное использование portal ebuild, `dry_run`, неверный lock/SHA, конфликт base commit, artifact и allowlist diff.
+
+В workflow, внутри закреплённого Gentoo container:
+
+- генерировать Manifest из новых или повторно используемых архивов;
+- проверять порядок версий средствами Portage;
+- запускать `pkgcheck scan --exit` для обоих пакетов;
+- запускать `emerge -pv` с точными кандидатными версиями.
+
+`pkgcheck` и `emerge -pv` не подтверждают сборку или работу сессии. Перед merge нужна ручная проверка установленной пары в сессии Umbriel.

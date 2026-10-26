@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "current": {
+    "umbriel": {
+      "version": "0.1.0_pre20261026184522",
+      "sha": "366739955d3905d7600638eb637941b2782c0c68"
+    },
+    "portal": {
+      "version": "0.1.0_p20261024195939",
+      "sha": "e69d6f72122a99aa3668e182a4df8755ada81c17"
+    }
+  },
+  "previous": null
+}
