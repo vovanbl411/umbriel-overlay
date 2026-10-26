@@ -137,10 +137,19 @@ def expected_diff(repository_root: Path, overlay_root: Path) -> set[str]:
     # В diff входят также удаления старых или исторических ebuilds. Любые
     # прочие файлы пакетов и репозитория остаются вне допустимой зоны записи.
     package_dirs = ("gui-wm/umbriel", "gui-libs/xdg-desktop-portal-umbriel")
+    import subprocess
+
     for directory in package_dirs:
         current = repository_root / directory
         keep = {Path(path).name for path in expected if path.startswith(directory + "/") and path.endswith(".ebuild")}
-        if current.exists():
+        if (repository_root / ".git").exists():
+            # Только base index подтверждает, что ebuild должен удалиться; новые посторонние файлы не разрешаем.
+            tracked = subprocess.run(["git", "ls-files", "--", directory], cwd=repository_root,
+                                     check=True, capture_output=True, text=True).stdout.splitlines()
+            expected.update(path for path in tracked
+                            if path.endswith(".ebuild") and Path(path).name not in keep)
+        elif current.exists():
+            # Fixture-копии без Git index используют доступные файлы как приближение base tree.
             for path in current.glob("*.ebuild"):
                 if path.name not in keep:
                     expected.add(path.relative_to(repository_root).as_posix())

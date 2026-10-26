@@ -73,13 +73,11 @@ jobs:
       - name: Prepare temporary Gentoo overlay metadata
         if: steps.rotation.outputs.prepared == 'true'
         run: |
-          mkdir -p "$RUNNER_TEMP/umbriel-overlay/metadata" \
-            "$RUNNER_TEMP/umbriel-overlay/profiles"
+          # Копируем repo metadata без перезаписи: layout.conf включает thin-manifests,
+          # а profiles/repo_name задаёт имя overlay. Container location настраивается ниже отдельно.
+          mkdir -p "$RUNNER_TEMP/umbriel-overlay"
           cp -a "$GITHUB_WORKSPACE/." "$RUNNER_TEMP/umbriel-overlay/"
           rm -rf "$RUNNER_TEMP/umbriel-overlay/.git"
-          printf 'masters = gentoo\nrepo-name = umbriel-overlay\n' \
-            > "$RUNNER_TEMP/umbriel-overlay/metadata/layout.conf"
-          printf 'umbriel-overlay\n' > "$RUNNER_TEMP/umbriel-overlay/profiles/repo_name"
 
       - name: Generate Manifests, check versions, pkgcheck and emerge metadata
         if: steps.rotation.outputs.prepared == 'true'
@@ -94,6 +92,9 @@ jobs:
             "$GENTOO_STAGE3_IMAGE" /bin/bash -e -c '
               mkdir -p /etc/portage/repos.conf
               printf "[umbriel-overlay]\nlocation = /overlay\nmasters = gentoo\nauto-sync = no\n" > /etc/portage/repos.conf/umbriel-overlay.conf
+              # Gentoo tree приходит из Portage volume, но Stage3 не объявляет его в repos.conf.
+              # Этот location нужен pkgcheck и resolver; auto-sync не даёт менять закреплённое дерево.
+              printf "[gentoo]\nlocation = /var/db/repos/gentoo\nauto-sync = no\n" > /etc/portage/repos.conf/gentoo.conf
               emerge --oneshot dev-util/pkgcheck
               PYTHONPATH=/overlay/scripts python3 /overlay/scripts/gentoo_validate.py
               chown -R "$OVERLAY_UID:$OVERLAY_GID" /overlay
