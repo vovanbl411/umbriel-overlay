@@ -14,9 +14,10 @@ PACKAGES = {
     "umbriel": ("gui-wm/umbriel", "umbriel"),
     "portal": ("gui-libs/xdg-desktop-portal-umbriel", "xdg-desktop-portal-umbriel"),
 }
-# Resolver pinned tree показал эти четыре USE-флага как необходимые для точных
-# кандидатов и sdbus-c++ 2.3.1 как единственную unstable-зависимость. При смене
-# digest перечитайте emerge -pv и меняйте только настройки из нового вывода; autounmask не запускать.
+# Resolver закреплённого дерева показал эти четыре USE-флага как необходимые
+# для точных кандидатов и sdbus-c++ 2.3.1 как единственную unstable-зависимость.
+# Менять настройки можно только по новому выводу emerge -pv после смены image
+# digest; затем повторить container prepare командами из README. Не запускать autounmask.
 RESOLVER_KEYWORD_OVERRIDES = ("=dev-cpp/sdbus-c++-2.3.1 ~amd64",)
 RESOLVER_USE_OVERRIDES = (
     ">=x11-libs/cairo-1.18.4-r1 X",
