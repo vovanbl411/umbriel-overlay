@@ -2,7 +2,7 @@
 
 [English](README.en.md)
 
-Gentoo overlay с двумя пакетами [Umbriel](https://github.com/noctalia-dev/umbriel): Wayland-композитором и его [backend для XDG Desktop Portal](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel). Синхронизация оверлея получает ebuild и Manifest; она сама не устанавливает и не обновляет пакеты в системе.
+Gentoo overlay с двумя пакетами [Umbriel](https://github.com/noctalia-dev/umbriel): Wayland-композитором и его [backend для XDG Desktop Portal](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel). Синхронизация оверлея получает ebuild и Manifest.
 
 ## Для пользователя
 
@@ -24,7 +24,7 @@ Gentoo overlay с двумя пакетами [Umbriel](https://github.com/nocta
    emerge --sync umbriel-overlay
    ```
 
-   Эта команда получает файлы оверлея. Она не устанавливает Umbriel и не запускает обновление системы.
+   Эта команда получает файлы оверлея.
 
 3. Обе версии имеют `KEYWORDS="~amd64"`. Добавьте точные атомы из таблицы принятой пары в `/etc/portage/package.accept_keywords/umbriel-overlay`, заменив обозначения версий значениями из `current`:
 
@@ -47,8 +47,6 @@ Gentoo overlay с двумя пакетами [Umbriel](https://github.com/nocta
 [Файл `automation/accepted-pairs.json`](automation/accepted-pairs.json) — источник соответствия версий и полных upstream SHA. `current` задаёт пару, принятую в основной ветке. В Draft PR таблица показывает кандидата; он станет принятой парой только после merge.
 
 Версия включает upstream base version и UTC-время соответствующего commit: Umbriel использует суффикс `_pre`, portal — `_p`. Ebuild закрепляет полный commit SHA, поэтому его исходник не меняется при продвижении upstream-ветки.
-
-Пользователь подтвердил сборку, установку и работу текущей принятой пары. Этому подтверждению не приписываются результаты других проверок.
 
 <!-- accepted-pairs:start -->
 | Статус | Версии Umbriel / portal | SHA Umbriel / portal |
@@ -76,13 +74,13 @@ Workflow [Prepare Umbriel snapshot pair](.github/workflows/prepare-umbriel-snaps
 
 В PR перечисляются старые и новые версии/SHA обоих проектов, upstream compare-ссылки, изменения packaging-файлов и результаты контейнерных проверок, artifact и base commit.
 
-Prepare job не получает права записи в репозиторий, Gentoo container не получает GitHub credentials. Автоматизация не устанавливает Umbriel, не собирает пакет, не тестирует сессию, не выполняет merge и не включает auto-merge. `pkgcheck` проверяет ebuild, а `emerge -pv` — разрешение зависимостей; эти команды не подтверждают сборку или работу сессии.
+Prepare job не получает права записи в репозиторий, Gentoo container не получает GitHub credentials. Автоматизация не устанавливает Umbriel, не собирает пакет, не тестирует сессию, не выполняет merge и не включает auto-merge. `pkgcheck` проверяет ebuild, а `emerge -pv` — разрешение зависимостей.
 
-Ручной запуск принимает `dry_run`. В этом режиме workflow выполняет discovery и показывает план, но не запускает контейнерную проверку и не создаёт artifact, branch или PR. Успешный `dry_run` не подтверждает локальный container prepare. Публикацию первого update PR можно считать проверенной только после фактического запуска publish job и появления Draft PR.
+Ручной запуск принимает `dry_run`. В этом режиме workflow выполняет discovery и показывает план, но не запускает контейнерную проверку и не создаёт artifact, branch или PR. Успешный `dry_run` не подтверждает локальный container prepare.
 
 ### Настройки GitHub
 
-Это инструкции по настройке репозитория; они не подтверждают, что параметры уже включены.
+Это инструкции по настройке репозитория.
 
 - Включите GitHub Actions. Если разрешены только выбранные Actions, добавьте `actions/checkout`, `actions/upload-artifact` и `actions/download-artifact` с SHA из `uses:` в workflow. GitHub сравнивает закреплённый SHA с allowlist; см. [настройки разрешённых Actions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository).
 - В **Settings → Actions → General → Workflow permissions** оставьте минимальные разрешения `GITHUB_TOKEN` по умолчанию и включите **Allow GitHub Actions to create and approve pull requests**, иначе publish job не сможет создать Draft PR. В workflow prepare имеет `contents: read` и `pull-requests: read`, publish — `contents: write` и `pull-requests: write`.
@@ -122,6 +120,6 @@ Digest образов задаются в `.github/workflows/prepare-umbriel-sna
 
 ### Ручная проверка и границы результатов
 
-Перед merge проверьте установленную пару в сессии Umbriel. CI проверяет Python-логику обновления, а контейнер — метаданные ebuild и зависимости. Они не выполняют сборку Umbriel или portal и не подтверждают работу сессии.
+Перед merge проверьте установленную пару в сессии Umbriel. CI проверяет Python-логику обновления, а контейнер — метаданные ebuild и зависимости. Они не выполняют сборку Umbriel или portal.
 
-Отдельно фиксируйте три результата: локально выполненный prepare с контейнером и проверкой artifact; успешный GitHub `dry_run`, который проверяет discovery и показывает план; фактическую публикацию первого update PR. Один результат не заменяет другой. Noctalia обновляется отдельно и в автоматизацию Umbriel не входит.
+Отдельно фиксируйте три результата: локально выполненный prepare с контейнером и проверкой artifact; успешный GitHub `dry_run`, который проверяет discovery и показывает план. Noctalia обновляется отдельно и в автоматизацию Umbriel не входит.
