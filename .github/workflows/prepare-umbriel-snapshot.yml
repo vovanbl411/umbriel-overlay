@@ -136,6 +136,8 @@ jobs:
     if: needs.prepare.outputs.publish_ready == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
     permissions:
       contents: write
       pull-requests: write
