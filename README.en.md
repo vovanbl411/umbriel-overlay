@@ -2,7 +2,7 @@
 
 [Русский](README.md)
 
-This Gentoo overlay provides two packages from [Umbriel](https://github.com/noctalia-dev/umbriel): the Wayland compositor and its [XDG Desktop Portal backend](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel). Syncing the overlay fetches ebuilds and Manifests; it does not install or update packages on your system.
+This Gentoo overlay provides two packages from [Umbriel](https://github.com/noctalia-dev/umbriel): the Wayland compositor and its [XDG Desktop Portal backend](https://github.com/noctalia-dev/xdg-desktop-portal-umbriel). Syncing the overlay fetches ebuilds and Manifests.
 
 ## For users
 
@@ -24,7 +24,7 @@ This Gentoo overlay provides two packages from [Umbriel](https://github.com/noct
    emerge --sync umbriel-overlay
    ```
 
-   This command fetches overlay files. It does not install Umbriel or start a system update.
+   This command fetches overlay files.
 
 3. Both packages have `KEYWORDS="~amd64"`. Add the exact atoms from the accepted pair table to `/etc/portage/package.accept_keywords/umbriel-overlay`, replacing the version placeholders with the values from `current`:
 
@@ -47,8 +47,6 @@ This Gentoo overlay provides two packages from [Umbriel](https://github.com/noct
 [`automation/accepted-pairs.json`](automation/accepted-pairs.json) is the source of truth for the version-to-full-upstream-SHA mapping. `current` identifies the pair accepted on the default branch. In a Draft PR, the table shows a candidate; it becomes accepted only after the PR is merged.
 
 Each version includes the upstream base version and the commit's UTC timestamp: Umbriel uses the `_pre` suffix and the portal uses `_p`. Each ebuild pins a full commit SHA, so its source does not change when an upstream branch advances.
-
-The user has confirmed that the current accepted pair builds, installs, and works. This confirmation does not imply that any other checks were performed.
 
 <!-- accepted-pairs:start -->
 | Status | Umbriel / portal versions | Umbriel / portal SHAs |
@@ -76,13 +74,13 @@ The [Prepare Umbriel snapshot pair](.github/workflows/prepare-umbriel-snapshot.y
 
 The PR lists the old and new versions and SHAs for both projects, upstream compare links, packaging-file changes, and the results of the container checks, artifact checks, and base-commit check.
 
-The prepare job has no repository write permission, and the Gentoo container receives no GitHub credentials. The automation does not install Umbriel, build the packages, test a session, merge a PR, or enable auto-merge. `pkgcheck` checks ebuild metadata, and `emerge -pv` checks dependency resolution; neither confirms a build or a working session.
+The prepare job has no repository write permission, and the Gentoo container receives no GitHub credentials. The automation does not install Umbriel, build the packages, test a session, merge a PR, or enable auto-merge. `pkgcheck` checks ebuild metadata, and `emerge -pv` checks dependency resolution.
 
-A manual run accepts the `dry_run` input. In this mode, the workflow runs discovery and shows the plan, but skips container validation and creates no artifact, branch, or PR. A successful `dry_run` does not confirm a local container prepare. The first update PR is verified as published only after the publish job actually runs and a Draft PR appears.
+A manual run accepts the `dry_run` input. In this mode, the workflow runs discovery and shows the plan, but skips container validation and creates no artifact, branch, or PR. A successful `dry_run` does not confirm a local container prepare.
 
 ### GitHub settings
 
-These are setup instructions; they do not confirm that the settings are already enabled.
+These are repository setup instructions.
 
 - Enable GitHub Actions. If the repository allows only selected Actions, allow `actions/checkout`, `actions/upload-artifact`, and `actions/download-artifact` at the SHAs used in the workflow's `uses:` entries. GitHub matches pinned SHAs against the allowlist; see [GitHub's allowed-actions settings](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository).
 - Under **Settings → Actions → General → Workflow permissions**, keep the minimum default `GITHUB_TOKEN` permissions and enable **Allow GitHub Actions to create and approve pull requests**; otherwise, the publish job cannot create a Draft PR. The workflow gives prepare `contents: read` and `pull-requests: read`, and publish `contents: write` and `pull-requests: write`.
@@ -122,6 +120,6 @@ The image digests are set in `.github/workflows/prepare-umbriel-snapshot.yml`. C
 
 ### Manual checks and limits
 
-Before merging, install and check the pair in an Umbriel session. CI checks the Python update logic; the container checks ebuild metadata and dependencies. Neither builds Umbriel or the portal nor confirms that the session works.
+Before merging, install and check the pair in an Umbriel session. CI checks the Python update logic; the container checks ebuild metadata and dependencies. Neither builds Umbriel or the portal.
 
-Track three outcomes separately: a local prepare with container and artifact verification; a successful GitHub `dry_run`, which checks discovery and shows the plan; and actual publication of the first update PR. One does not replace another. Noctalia updates are handled separately and are not part of Umbriel automation.
+Track these outcomes separately: a local prepare with container and artifact verification; and a successful GitHub `dry_run`, which checks discovery and shows the plan. Noctalia updates are handled separately and are not part of Umbriel automation.
