@@ -51,8 +51,8 @@ Each version includes the upstream base version and the commit's UTC timestamp: 
 <!-- accepted-pairs:start -->
 | Status | Umbriel / portal versions | Umbriel / portal SHAs |
 | --- | --- | --- |
-| Current accepted pair | `0.1.0_pre20261029115608` / `0.1.0_p20261027145449` | `38c8b75e7766ff62cbeee26a86fbc2756d1f4075` / `e24762d9c75e294f89dbe7a0e3fd55c5cdc3ff0a` |
-| Previous accepted pair | `0.1.0_pre20261028025250` / `0.1.0_p20261027145449` | `b456dc29610dff3e92a1cc42a489e3b6d86cbf01` / `e24762d9c75e294f89dbe7a0e3fd55c5cdc3ff0a` |
+| Current accepted pair | `0.1.0_pre20261030135721` / `0.1.0_p20261030114808` | `253089922796e726d2c4f13c12b15ee7d81aaf5a` / `17739df892537e4c9a89eb60dd8a1f1eadf750e5` |
+| Previous accepted pair | `0.1.0_pre20261029115608` / `0.1.0_p20261027145449` | `38c8b75e7766ff62cbeee26a86fbc2756d1f4075` / `e24762d9c75e294f89dbe7a0e3fd55c5cdc3ff0a` |
 <!-- accepted-pairs:end -->
 
 After a rotation, `previous` holds the previously accepted pair and can be used for rollback. `previous` is currently `null`; the first rotation will move the current pair into `previous`. Historical ebuilds on the default branch before that rotation do not define an accepted pair. If both pairs use the same portal SHA, they share one ebuild.
