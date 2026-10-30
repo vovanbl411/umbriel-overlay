@@ -56,7 +56,7 @@ BDEPEND="
 src_configure() {
 	local emesonargs=(
 		-Dtests=disabled
-		-Dtest_ipc=disabled
+		-Dharness=disabled
 		-Dlocaled=disabled
 		-Dtracy=disabled
 		$(meson_feature jemalloc)
