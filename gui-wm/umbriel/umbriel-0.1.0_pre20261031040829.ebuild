@@ -5,7 +5,7 @@ EAPI=8
 
 inherit meson
 
-MY_COMMIT="38c8b75e7766ff62cbeee26a86fbc2756d1f4075"
+MY_COMMIT="2952bbcbbb4669953abc67dd74f4cd9711dbce6b"
 
 DESCRIPTION="A Wayland compositor built on wlroots"
 HOMEPAGE="https://github.com/noctalia-dev/umbriel https://docs.noctalia.dev/umbriel/"
@@ -56,7 +56,7 @@ BDEPEND="
 src_configure() {
 	local emesonargs=(
 		-Dtests=disabled
-		-Dtest_ipc=disabled
+		-Dharness=disabled
 		-Dlocaled=disabled
 		-Dtracy=disabled
 		$(meson_feature jemalloc)
