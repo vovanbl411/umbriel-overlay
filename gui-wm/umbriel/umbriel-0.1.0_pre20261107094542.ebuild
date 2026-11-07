@@ -5,7 +5,7 @@ EAPI=8
 
 inherit meson
 
-MY_COMMIT="4c9859f829d711be3695cfde9204e95f82747b70"
+MY_COMMIT="f5dd36b0d4cf1019170d736f1c256361fa361cf0"
 
 DESCRIPTION="A Wayland compositor built on wlroots"
 HOMEPAGE="https://github.com/noctalia-dev/umbriel https://docs.noctalia.dev/umbriel/"
