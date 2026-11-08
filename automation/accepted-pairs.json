@@ -2,8 +2,8 @@
   "schema_version": 1,
   "current": {
     "umbriel": {
-      "version": "0.1.0_pre20261107094542",
-      "sha": "f5dd36b0d4cf1019170d736f1c256361fa361cf0"
+      "version": "0.1.0_pre20261108024851",
+      "sha": "94ab5961dce31cd53e5cdca76d2723d73fc2e189"
     },
     "portal": {
       "version": "0.1.0_p20261106143557",
@@ -12,12 +12,12 @@
   },
   "previous": {
     "umbriel": {
-      "version": "0.1.0_pre20261105140458",
-      "sha": "28de32d0af03ef48cf7bcb0a6c45555336fc9bc4"
+      "version": "0.1.0_pre20261107094542",
+      "sha": "f5dd36b0d4cf1019170d736f1c256361fa361cf0"
     },
     "portal": {
-      "version": "0.1.0_p20261101154307",
-      "sha": "79f087598d596ae8a81dff1036d0ab3b5c446584"
+      "version": "0.1.0_p20261106143557",
+      "sha": "56951426eb9931db3f1c57348f226c2427fba4f3"
     }
   }
 }
