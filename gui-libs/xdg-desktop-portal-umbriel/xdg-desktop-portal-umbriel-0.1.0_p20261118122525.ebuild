@@ -5,7 +5,7 @@ EAPI=8
 
 inherit meson
 
-MY_COMMIT="116e9485b39552a39e4e6088ff7cbe50e7504829"
+MY_COMMIT="32b8ee4ff0675c3f819c13b3f4b8651c1b887a43"
 
 DESCRIPTION="XDG Desktop Portal backend for the Umbriel compositor"
 HOMEPAGE="https://github.com/noctalia-dev/xdg-desktop-portal-umbriel"
