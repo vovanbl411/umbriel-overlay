@@ -24,7 +24,7 @@ RESOLVER_USE_OVERRIDES = (
     ">=media-libs/libglvnd-1.7.0 X",
     ">=media-libs/freetype-2.14.3 harfbuzz",
     ">=gui-libs/wlroots-0.20.2 X",
-    ">=media-libs/mesa-26.1.8 wayland",
+    ">=media-libs/mesa-26.1.8 wayland"
 )
 
 
