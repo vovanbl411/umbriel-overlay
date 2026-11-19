@@ -5,7 +5,7 @@ EAPI=8
 
 inherit meson
 
-MY_COMMIT="bdf6c31f65aa9dc4bd48319605b65ea126e47701"
+MY_COMMIT="62030bb90784229f6fdc8b15bbb03bcd28867488"
 
 DESCRIPTION="XDG Desktop Portal backend for the Umbriel compositor"
 HOMEPAGE="https://github.com/noctalia-dev/xdg-desktop-portal-umbriel"
@@ -17,27 +17,37 @@ SLOT="0"
 KEYWORDS="~amd64"
 IUSE="+picker"
 
-DEPEND="
+COMMON_DEPEND="
 	>=dev-cpp/sdbus-c++-2.0:=
-	dev-cpp/nlohmann_json
-	dev-cpp/tomlplusplus
 	dev-libs/wayland
 	media-libs/mesa[opengl]
 	media-video/pipewire
 	x11-libs/cairo
 	x11-libs/libdrm
-	picker? ( >=gui-libs/gtk-4.12:4 )
+	picker? (
+		dev-libs/glib:2
+		media-libs/fontconfig
+		media-libs/freetype:2
+		media-libs/harfbuzz:=
+		media-libs/libglvnd
+		media-libs/mesa[wayland]
+		x11-libs/libxkbcommon
+		>=x11-libs/pango-1.50
+	)
+"
+
+DEPEND="
+	${COMMON_DEPEND}
+	dev-cpp/nlohmann_json
+	dev-cpp/tomlplusplus
+	picker? (
+		>=dev-libs/stb-20240201
+	)
 "
 
 RDEPEND="
-	>=dev-cpp/sdbus-c++-2.0:=
-	dev-libs/wayland
-	media-libs/mesa[opengl]
-	media-video/pipewire
+	${COMMON_DEPEND}
 	sys-apps/xdg-desktop-portal
-	x11-libs/cairo
-	x11-libs/libdrm
-	picker? ( >=gui-libs/gtk-4.12:4 )
 "
 
 BDEPEND="
@@ -46,13 +56,12 @@ BDEPEND="
 	>=dev-libs/wayland-protocols-1.39
 	dev-util/wayland-scanner
 	virtual/pkgconfig
-	picker? ( dev-util/glib-utils )
 "
 
 src_configure() {
 	local emesonargs=(
 		-Dtests=false
-		$(meson_feature picker)
+		$(meson_use picker)
 	)
 
 	meson_src_configure
